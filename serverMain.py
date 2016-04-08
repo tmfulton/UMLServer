@@ -1,22 +1,42 @@
-from flask import Flask
+from flask import Flask, request, send_file
+from werkzeug import secure_filename
 import subprocess
+import os
+
+ALLOWED_EXTENSIONS = set(['txt'])
 
 app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    return "Add /uml to the end of the address to generate UML!"
+	return "Add /uml to the end of the address to generate UML!"
 
 @app.route("/smell/<name>")
 def smelly(name):
-    out = name + " smells"
-    return out
+	out = name + " smells"
+	return out
 
-@app.route("/uml")
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+
+@app.route("/upload", methods=['GET', 'POST'])
 def generateUML():
-    cmd = ["java", "-jar", "./plantuml.jar", "./plantUMLTest.txt"]
-    p = subprocess.Popen(cmd)
-    return "Creating your Diagram now"
+	if request.method == 'POST':
+		plantFile = request.files['file']
+		if plantFile and allowed_file(plantFile.filename):
+			plantFileName = secure_filename(plantFile.filename)
+			plantFile.save(app.config["DIR"] + "/" + plantFileName)
+			plantFilePath = app.config["DIR"] + "/" + plantFileName
+			plantUMLCommand = ["java", "-jar", "./plantuml.jar", plantFilePath]
+			p = subprocess.call(plantUMLCommand)
+			pngFileName = plantFileName.replace(".txt", ".png")
+			pngFile = open(pngFileName, "r")
+			return send_file(pngFileName, mimetype='image/png')
+			# return send_file(pngFileName)
+
+	return "Error? How do I handle this?"
 
 if __name__ == "__main__" :
-    app.run()
+	app.config["DIR"] = os.getcwd()
+	app.run()
